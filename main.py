@@ -9,6 +9,7 @@ import threading
 import aiohttp
 import asyncio
 import praw
+import io
 
 # Environment Variables
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -97,11 +98,25 @@ async def redditroulette(ctx):
         subreddit = reddit.subreddit("FemBoys+memes+birdswitharms+garageporn+futanari+kittens+Tinder")
         posts = list(subreddit.top(time_filter="day", limit=200))
         random.shuffle(posts)
+
         for post in posts:
             image_url = post.url
             if image_url.endswith((".jpg", ".png", ".gif")):
-                await ctx.send(image_url)
-                return
+                # Download the image temporarily
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(image_url) as resp:
+                        if resp.status == 200:
+                            data = await resp.read()
+                            subreddit_name = str(post.subreddit).lower()
+                            # Add spoiler tag for these two subreddits:
+                            if subreddit_name in ["femboys", "futanari"]:
+                                filename = f"SPOILER_{os.path.basename(image_url)}"
+                            else:
+                                filename = os.path.basename(image_url)
+
+                            file = discord.File(fp=io.BytesIO(data), filename=filename)
+                            await ctx.send(file=file)
+                            return
         await ctx.send("⚠️ No images found!")
     except Exception as e:
         await ctx.send("😕 Failed to fetch images from Reddit.")
@@ -113,7 +128,7 @@ async def help_command(ctx):
         "🛠 **Available Commands:**\n"
         "• `!probability <sentence>` – Get a random probability score for your sentence.\n"
         "• `!joe <question>` – Ask the AI anything you want.\n"
-        "• `!redditroulette` – Spin the Reddit wheel for a spicy meme.\n"
+        "• `!redditroulette` – Spin the Reddit wheel for a image or gif.\n"
         "• `!trivia` – Test your knowledge with a trivia question.\n"
         "• `!hangman start` / `!hangman guess <letter>` – Play Hangman together.\n"
         "• `!hack <username>` – Simulate a fake hacker mode.\n"
@@ -153,7 +168,7 @@ class HangmanGame:
 
 hangman_games = {}
 
-@bot.command(name="hangman", help="Start or play Hangman: `!hangman start` or `!hangman guess <letter>`.")
+@bot.command(name="hangman", help="Start or play Hangman: `!hangman start` or `!hangman guess <letter>`.") 
 async def hangman(ctx, action=None, guess=None):
     channel_id = ctx.channel.id
     if action == "start":
