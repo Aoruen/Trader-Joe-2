@@ -10,6 +10,8 @@ import aiohttp
 import asyncio
 import asyncpraw
 import io
+import PIL.Image
+import PIL.ImageFilter
 
 # Environment Variables
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -172,6 +174,10 @@ async def help_command(ctx):
         "• `!trivia` – Test your knowledge with a trivia question.\n"
         "• `!hangman start` / `!hangman guess <letter>` – Play Hangman together.\n"
         "• `!hack <username>` – Simulate a fake hacker mode.\n"
+        "• `!8ball <Yes Or No Question>` -Ask The 8-Ball a question\n"
+        "• `!coinflip` – Flip A Coin.\n"
+        "• `!roll` – Roll The Dice.\n"
+        "• `!filter` – Applies a filter to a image of your choice.\n"
         "• `!help` – Show this help message. 😊"
     )
     await ctx.send(help_text)
@@ -309,6 +315,105 @@ async def hack(ctx, username: str = None):
     await ctx.send(f"💾 Password found: **{password}** 🔓")
     await ctx.send(f"✅ Hack complete on **{username}**!")
 
+@bot.command(name="8ball", help="Ask the magic 8 ball a question.")
+async def magic_8ball(ctx, *, question: str):
+    responses = [
+        "It is certain.",
+        "Without a doubt.",
+        "You may rely on it.",
+        "Yes, definitely.",
+        "It is decidedly so.",
+        "As I see it, yes.",
+        "Most likely.",
+        "Outlook good.",
+        "Yes.",
+        "Signs point to yes.",
+        "Reply hazy, try again.",
+        "Ask again later.",
+        "Better not tell you now.",
+        "Cannot predict now.",
+        "Concentrate and ask again.",
+        "Don't count on it.",
+        "My reply is no.",
+        "My sources say no.",
+        "Outlook not so good.",
+        "Very doubtful."
+    ]
+    answer = random.choice(responses)
+    await ctx.send(f"🎱 Question: {question}\n🎱 Magic 8 Ball says: **{answer}**")
+
+@bot.command(name="coinflip", help="Flip a coin.")
+async def coinflip(ctx):
+    result = random.choice(["Heads", "Tails"])
+    await ctx.send(f"🪙 The coin landed on **{result}**!")
+
+@bot.command(name="roll", help="Roll dice. Usage: !roll 2d6 (roll 2 six-sided dice).")
+async def roll(ctx, dice: str):
+    match = re.fullmatch(r"(\d*)d(\d+)", dice.lower())
+    if not match:
+        await ctx.send("⚠️ Invalid dice format. Use NdM, e.g., `2d6` or `d20`.")
+        return
+
+    count = int(match.group(1)) if match.group(1) else 1
+    sides = int(match.group(2))
+    if count > 100 or sides > 1000:
+        await ctx.send("⚠️ That's too many dice or sides. Please keep it reasonable.")
+        return
+
+    rolls = [random.randint(1, sides) for _ in range(count)]
+    total = sum(rolls)
+    rolls_str = ', '.join(str(r) for r in rolls)
+    await ctx.send(f"🎲 Rolled {dice}: {rolls_str}\nTotal: **{total}**")
+
+@bot.command(name="filter", help="Apply an image filter to an attached or replied-to image. Filters: blur, contour, detail, sharpen, emboss.")
+async def filter_image(ctx, filter_name: str):
+    filter_name = filter_name.lower()
+    filters = {
+        "blur": PIL.ImageFilter.BLUR,
+        "contour": PIL.ImageFilter.CONTOUR,
+        "detail": PIL.ImageFilter.DETAIL,
+        "sharpen": PIL.ImageFilter.SHARPEN,
+        "emboss": PIL.ImageFilter.EMBOSS
+    }
+    if filter_name not in filters:
+        await ctx.send("⚠️ Unknown filter! Available: blur, contour, detail, sharpen, emboss.")
+        return
+
+    # Find image attachment from message or replied message
+    image_url = None
+    if ctx.message.attachments:
+        image_url = ctx.message.attachments[0].url
+    elif ctx.message.reference:
+        ref_msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+        if ref_msg.attachments:
+            image_url = ref_msg.attachments[0].url
+
+    if not image_url:
+        await ctx.send("⚠️ Please attach an image or reply to an image to use this command.")
+        return
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(image_url) as resp:
+                if resp.status != 200:
+                    await ctx.send("⚠️ Couldn't download the image.")
+                    return
+                data = await resp.read()
+
+        with PIL.Image.open(io.BytesIO(data)) as img:
+            img = img.convert("RGB")
+            img_filtered = img.filter(filters[filter_name])
+
+            # Save to BytesIO
+            img_byte_arr = io.BytesIO()
+            img_filtered.save(img_byte_arr, format="JPEG")
+            img_byte_arr.seek(0)
+
+            await ctx.send(file=discord.File(fp=img_byte_arr, filename=f"filtered_{filter_name}.jpg"))
+    except Exception as e:
+        await ctx.send("⚠️ Something went wrong applying the filter.")
+        print(f"[Filter Error] {e}")
+        
 # Flask server
 app = Flask(__name__)
 
