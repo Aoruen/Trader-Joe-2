@@ -14,3 +14,40 @@ _book
 *.epub
 *.mobi
 *.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Environments
+.env
+.env.*
+*.envrc
+
+# Flask
+instance/
+*.db
+
+# VSCode
+.vscode/
+
+# macOS / Linux
+.DS_Store
+
+# Logs
+*.log
+
+# IDEs
+.idea/
+*.swp
+
+# Cache
+*.cache/
+.cache/
+
+# Runtime
+*.pid
+*.sock
