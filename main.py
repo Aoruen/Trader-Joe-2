@@ -110,7 +110,7 @@ async def redditroulette(ctx):
 
         random.shuffle(posts)
 
-        valid_extensions = (".jpg", ".jpeg", ".png", ".gif", ".gifv", ".mp4", ".webm")
+        valid_extensions = (".jpg", ".jpeg", ".png", ".gif", ".gifv", ".webm")
 
         for post in posts:
             url = post.url.lower()
