@@ -12,6 +12,7 @@ import asyncpraw
 import io
 import PIL.Image
 import PIL.ImageFilter
+from urllib.parse import urlparse
 
 # Environment Variables
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -112,33 +113,31 @@ async def redditroulette(ctx):
 
         random.shuffle(posts)
 
-        valid_extensions = (".jpg", ".jpeg", ".png", ".gif", ".gifv", ".webm")
+        allowed_extensions = (".jpg", ".jpeg", ".png", ".gif")  # Only images + .gif
 
         for post in posts:
-            url = post.url.lower()
+            if getattr(post, "is_video", False):
+                continue  # Skip all Reddit-hosted videos
 
-            # Determine the actual media URL
-            media_url = None
-            if url.endswith(valid_extensions) or getattr(post, 'is_video', False):
-                if getattr(post, 'is_video', False) and hasattr(post, 'media') and post.media:
-                    reddit_video = post.media.get("reddit_video")
-                    if reddit_video and reddit_video.get("fallback_url"):
-                        media_url = reddit_video["fallback_url"]
+            media_url = post.url.lower()
+            parsed = urlparse(media_url)
+            filename = os.path.basename(parsed.path)
+
+            if not filename.endswith(allowed_extensions):
+                # Try preview fallback
+                if hasattr(post, "preview") and "images" in post.preview:
+                    images = post.preview["images"]
+                    if images:
+                        preview_url = images[0].get("source", {}).get("url", "").replace("&amp;", "&")
+                        parsed = urlparse(preview_url)
+                        filename = os.path.basename(parsed.path)
+                        if not filename.endswith(allowed_extensions):
+                            continue
+                        media_url = preview_url
                     else:
                         continue
                 else:
-                    media_url = post.url
-            else:
-                # Try to get preview image if possible
-                if hasattr(post, 'preview') and "images" in post.preview:
-                    images = post.preview["images"]
-                    if images:
-                        media_url = images[0].get("source", {}).get("url")
-                        if media_url:
-                            media_url = media_url.replace("&amp;", "&")
-
-            if not media_url:
-                continue
+                    continue
 
             async with aiohttp.ClientSession() as session:
                 async with session.get(media_url) as resp:
@@ -147,10 +146,9 @@ async def redditroulette(ctx):
                     data = await resp.read()
 
             if len(data) > MAX_FILE_SIZE:
-                # Skip large files
                 continue
 
-            filename = media_url.split("/")[-1]
+            # Handle NSFW subreddits
             if chosen_subreddit.lower() in ["femboys", "futanari"]:
                 filename = "SPOILER_" + filename
 
