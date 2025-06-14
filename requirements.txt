@@ -3,4 +3,3 @@ flask
 openai
 aiohttp
 asyncpraw
-pillow
