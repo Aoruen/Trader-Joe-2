@@ -8,7 +8,7 @@ from flask import Flask
 import threading
 import aiohttp
 import asyncio
-import praw  # Added PRAW import
+import praw
 
 # Environment Variables
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -24,13 +24,13 @@ if not OPENROUTER_API_KEY:
 if not REDDIT_CLIENT_ID or not REDDIT_CLIENT_SECRET:
     raise ValueError("Reddit OAuth environment variables are missing!")
 
-# Set up OpenRouter client
+# OpenRouter client
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=OPENROUTER_API_KEY,
 )
 
-# Set up Reddit client (PRAW)
+# Reddit client (PRAW)
 reddit = praw.Reddit(
     client_id=REDDIT_CLIENT_ID,
     client_secret=REDDIT_CLIENT_SECRET,
@@ -41,19 +41,15 @@ reddit = praw.Reddit(
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-# Remove default help command
 bot.remove_command("help")
 
-# Normalize helper
+# Helpers
 def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip().lower())
 
-# Split long messages
 def split_message(message, max_length=2000):
     return [message[i:i+max_length] for i in range(0, len(message), max_length)]
 
-# Global DM blocker
 @bot.check
 async def block_dms(ctx):
     if isinstance(ctx.channel, discord.DMChannel):
@@ -61,17 +57,15 @@ async def block_dms(ctx):
         return False
     return True
 
-# In-memory conversation history per user
 conversation_histories = {}
 
-# Probability command
+# Commands
 @bot.command(name="probability", help="Returns a random probability (0–100%) for the given sentence.")
 async def probability(ctx, *, sentence: str):
     norm = normalize(sentence)
     result = round(random.uniform(0, 100), 2)
     await ctx.send(f"🔍 Probability for: \"{norm}\"\n🎯 Result: **{result:.2f}%**")
 
-# General-purpose AI command
 @bot.command(name="joe", help="Ask anything – AI will respond intelligently.")
 async def joe(ctx, *, question: str):
     try:
@@ -91,39 +85,35 @@ async def joe(ctx, *, question: str):
             temperature=0.75
         )
         reply = completion.choices[0].message.content.strip()
-
         for chunk in split_message(reply):
             await ctx.send(chunk)
-
     except Exception as e:
         await ctx.send("⚠️ Mini Aoruen Crashed The Car. Try again shortly.")
         print(f"[AI Error] {e}")
 
-# Meme command (Reddit) — now using PRAW with OAuth
-@bot.command(name="meme", help="Fetch a meme from r/memes.")
-async def meme(ctx):
+@bot.command(name="redditroulette", help="Spin the Reddit wheel and Take a Chance.")
+async def redditroulette(ctx):
     try:
-        subreddit = reddit.subreddit("FemBoys")
-        posts = list(subreddit.top(time_filter="day", limit=1000))
+        subreddit = reddit.subreddit("FemBoys+memes+birdswitharms+garageporn+futanari+kittens+Tinder")
+        posts = list(subreddit.top(time_filter="day", limit=200))
         random.shuffle(posts)
         for post in posts:
             image_url = post.url
             if image_url.endswith((".jpg", ".png", ".gif")):
                 await ctx.send(image_url)
                 return
-        await ctx.send("⚠️ No image memes found!")
+        await ctx.send("⚠️ No images found!")
     except Exception as e:
-        await ctx.send("😕 Failed to fetch memes from Reddit.")
+        await ctx.send("😕 Failed to fetch images from Reddit.")
         print(f"[Reddit Error] {e}")
 
-# Help command
 @bot.command(name="help", help="List all available commands.")
 async def help_command(ctx):
     help_text = (
         "🛠 **Available Commands:**\n"
         "• `!probability <sentence>` – Get a random probability score for your sentence.\n"
         "• `!joe <question>` – Ask the AI anything you want.\n"
-        "• `!meme` – Grab a fresh meme from Reddit!\n"
+        "• `!redditroulette` – Spin the Reddit wheel for a spicy meme.\n"
         "• `!trivia` – Test your knowledge with a trivia question.\n"
         "• `!hangman start` / `!hangman guess <letter>` – Play Hangman together.\n"
         "• `!hack <username>` – Simulate a fake hacker mode.\n"
@@ -131,14 +121,11 @@ async def help_command(ctx):
     )
     await ctx.send(help_text)
 
-# Bot ready event
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user} — Ready on {len(bot.guilds)} servers.")
 
-# --- New Features Added Below ---
-
-# 1. Hangman Game Setup
+# Hangman Game
 class HangmanGame:
     MAX_WRONG = 6
 
@@ -148,8 +135,7 @@ class HangmanGame:
         self.wrong_guesses = 0
 
     def display(self):
-        displayed = " ".join(c if c in self.guessed else "_" for c in self.word)
-        return f"`{displayed}`"
+        return f"`{' '.join(c if c in self.guessed else '_' for c in self.word)}`"
 
     def guess(self, letter):
         letter = letter.lower()
@@ -188,9 +174,8 @@ async def hangman(ctx, action=None, guess=None):
         game = hangman_games[channel_id]
         valid, result = game.guess(guess)
         if not valid:
-            await ctx.send(result)  # Already guessed message
-            return
-        if result == "won":
+            await ctx.send(result)
+        elif result == "won":
             await ctx.send(f"🎉 You won! The word was **{game.word}**.")
             del hangman_games[channel_id]
         elif result == "lost":
@@ -201,9 +186,8 @@ async def hangman(ctx, action=None, guess=None):
         else:
             await ctx.send(f"✅ Good guess! {game.display()}")
     else:
-        await ctx.send("Usage: `!hangman start` to begin or `!hangman guess <letter>` to guess.")
+        await ctx.send("Usage: `!hangman start` or `!hangman guess <letter>`.")
 
-# 2. Trivia Command (Open Trivia DB)
 @bot.command(name="trivia", help="Fetch a fresh trivia question from Open Trivia DB.")
 async def trivia(ctx):
     async with aiohttp.ClientSession() as session:
@@ -218,7 +202,7 @@ async def trivia(ctx):
                 return
 
             q = data["results"][0]
-            question = re.sub(r"&quot;|&#039;", "'", q["question"])  # Basic HTML unescape
+            question = re.sub(r"&quot;|&#039;", "'", q["question"])
             correct_answer = re.sub(r"&quot;|&#039;", "'", q["correct_answer"])
             options = [re.sub(r"&quot;|&#039;", "'", opt) for opt in q["incorrect_answers"]] + [correct_answer]
             random.shuffle(options)
@@ -229,11 +213,7 @@ async def trivia(ctx):
             await ctx.send(f"❓ Trivia: {question}\n{format_options(options)}\nReply with the letter of your answer within 15 seconds.")
 
             def check(m):
-                return (
-                    m.channel == ctx.channel and
-                    m.author == ctx.author and
-                    m.content.upper() in [chr(65+i) for i in range(len(options))]
-                )
+                return m.channel == ctx.channel and m.author == ctx.author and m.content.upper() in [chr(65+i) for i in range(len(options))]
 
             try:
                 msg = await bot.wait_for("message", timeout=15.0, check=check)
@@ -247,7 +227,6 @@ async def trivia(ctx):
             else:
                 await ctx.send(f"❌ Wrong! The correct answer was **{correct_answer}**.")
 
-# 3. Fake Hacker Mode
 FAKE_LOGS = [
     "Accessing mainframe...",
     "Bypassing firewall...",
@@ -267,17 +246,15 @@ async def hack(ctx, username: str = None):
         await ctx.send("Usage: `!hack <username>`")
         return
     await ctx.send(f"Initiating hack on **{username}**...")
-
     for _ in range(5):
         log = random.choice(FAKE_LOGS)
         await asyncio.sleep(1.5)
         await ctx.send(f"`{log}`")
-
     password = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=10))
     await ctx.send(f"💾 Password found: **{password}** 🔓")
     await ctx.send(f"✅ Hack complete on **{username}**!")
 
-# Minimal Flask Web Server to satisfy Render
+# Flask server
 app = Flask(__name__)
 
 @app.route("/")
@@ -288,8 +265,7 @@ def run_web():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-# Start web server in background thread
 threading.Thread(target=run_web).start()
 
-# Start the bot
+# Start bot
 bot.run(TOKEN)
