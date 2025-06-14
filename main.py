@@ -170,14 +170,14 @@ async def help_command(ctx):
         "🛠 **Available Commands:**\n"
         "• `!probability <sentence>` – Get a random probability score for your sentence.\n"
         "• `!joe <question>` – Ask the AI anything you want.\n"
-        "• `!redditroulette` – Spin the Reddit wheel for a spicy meme.\n"
+        "• `!redditroulette` – Spin the Reddit wheel for a random image.\n"
         "• `!trivia` – Test your knowledge with a trivia question.\n"
         "• `!hangman start` / `!hangman guess <letter>` – Play Hangman together.\n"
-        "• `!hack <username>` – Simulate a fake hacker mode.\n"
+        "• `!hack <username>` – Simulate a hacker mode.\n"
         "• `!8ball <Yes Or No Question>` -Ask The 8-Ball a question\n"
         "• `!coinflip` – Flip A Coin.\n"
-        "• `!roll` – Roll The Dice.\n"
-        "• `!filter` – Applies a filter to a image of your choice.\n"
+        "• `!roll <Number of dice-Number of Sides Ex. 2D6>` – Roll The Dice.\n"
+        "• `!filter <blur, contour, detail, sharpen, emboss>` – Applies a filter to a image of your choice.\n"
         "• `!help` – Show this help message. 😊"
     )
     await ctx.send(help_text)
