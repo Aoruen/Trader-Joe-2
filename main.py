@@ -111,7 +111,13 @@ async def redditroulette(ctx):
                             continue
                         data = await resp.read()
 
-                filename = "SPOILER_" + url.split("/")[-1]
+                # Determine if spoiler tag needed
+                spoiler_subs = {"femboys", "futanari"}
+                is_spoiler = post.subreddit.display_name.lower() in spoiler_subs
+
+                filename_prefix = "SPOILER_" if is_spoiler else ""
+                filename = filename_prefix + url.split("/")[-1]
+
                 file = discord.File(fp=io.BytesIO(data), filename=filename)
                 await ctx.send(file=file)
                 return
