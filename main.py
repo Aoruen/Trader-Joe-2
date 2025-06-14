@@ -160,7 +160,7 @@ async def redditroulette(ctx):
 
     except Exception as e:
         await ctx.send("😕 Failed to fetch media from Reddit.")
-        print(f"[Reddit Error] {e}"))
+        print(f"[Reddit Error] {e}")
 
 @bot.command(name="help", help="List all available commands.")
 async def help_command(ctx):
