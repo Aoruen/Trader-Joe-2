@@ -1,4 +1,3 @@
-
 import os
 import discord
 from discord.ext import commands
@@ -93,6 +92,8 @@ async def joe(ctx, *, question: str):
         await ctx.send("⚠️ Mini Aoruen Crashed The Car. Try again shortly.")
         print(f"[AI Error] {e}")
 
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
 @bot.command(name="redditroulette", help="Spin the Reddit wheel and Take a Chance.")
 async def redditroulette(ctx):
     try:
@@ -101,32 +102,65 @@ async def redditroulette(ctx):
         subreddit = await reddit.subreddit(chosen_subreddit)
 
         posts = []
-        async for post in subreddit.top(time_filter="day", limit=200):
+        async for post in subreddit.hot(limit=1000):
             posts.append(post)
+        if not posts:
+            await ctx.send(f"⚠️ No posts found in r/{chosen_subreddit}!")
+            return
+
         random.shuffle(posts)
 
+        valid_extensions = (".jpg", ".jpeg", ".png", ".gif", ".gifv", ".mp4", ".webm")
+
         for post in posts:
-            url = post.url
-            if url.endswith((".jpg", ".png", ".gif")):
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url) as resp:
-                        if resp.status != 200:
-                            continue
-                        data = await resp.read()
+            url = post.url.lower()
 
-                filename = url.split("/")[-1]
-                # Add spoiler tag only if subreddit is FemBoys or Futanari
-                if chosen_subreddit.lower() in ["femboys", "futanari"]:
-                    filename = "SPOILER_" + filename
+            # Determine the actual media URL
+            media_url = None
+            if url.endswith(valid_extensions) or getattr(post, 'is_video', False):
+                if getattr(post, 'is_video', False) and hasattr(post, 'media') and post.media:
+                    reddit_video = post.media.get("reddit_video")
+                    if reddit_video and reddit_video.get("fallback_url"):
+                        media_url = reddit_video["fallback_url"]
+                    else:
+                        continue
+                else:
+                    media_url = post.url
+            else:
+                # Try to get preview image if possible
+                if hasattr(post, 'preview') and "images" in post.preview:
+                    images = post.preview["images"]
+                    if images:
+                        media_url = images[0].get("source", {}).get("url")
+                        if media_url:
+                            media_url = media_url.replace("&amp;", "&")
 
-                file = discord.File(fp=io.BytesIO(data), filename=filename)
-                await ctx.send(f"🎲 From r/{chosen_subreddit}", file=file)
-                return
+            if not media_url:
+                continue
 
-        await ctx.send(f"⚠️ No images found in r/{chosen_subreddit}!")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(media_url) as resp:
+                    if resp.status != 200:
+                        continue
+                    data = await resp.read()
+
+            if len(data) > MAX_FILE_SIZE:
+                # Skip large files
+                continue
+
+            filename = media_url.split("/")[-1]
+            if chosen_subreddit.lower() in ["femboys", "futanari"]:
+                filename = "SPOILER_" + filename
+
+            file = discord.File(fp=io.BytesIO(data), filename=filename)
+            await ctx.send(f"🎲 From r/{chosen_subreddit}: {post.title}", file=file)
+            return
+
+        await ctx.send(f"⚠️ Couldn't find any suitable media under 10MB in r/{chosen_subreddit} right now!")
+
     except Exception as e:
-        await ctx.send("😕 Failed to fetch images from Reddit.")
-        print(f"[Reddit Error] {e}")
+        await ctx.send("😕 Failed to fetch media from Reddit.")
+        print(f"[Reddit Error] {e}"))
 
 @bot.command(name="help", help="List all available commands.")
 async def help_command(ctx):
