@@ -8,7 +8,7 @@ from flask import Flask
 import threading
 import aiohttp
 import asyncio
-import praw
+import asyncpraw
 import io
 
 # Environment Variables
@@ -31,8 +31,8 @@ client = OpenAI(
     api_key=OPENROUTER_API_KEY,
 )
 
-# Reddit client (PRAW)
-reddit = praw.Reddit(
+# Async Reddit client
+reddit = asyncpraw.Reddit(
     client_id=REDDIT_CLIENT_ID,
     client_secret=REDDIT_CLIENT_SECRET,
     user_agent=REDDIT_USER_AGENT,
@@ -95,28 +95,27 @@ async def joe(ctx, *, question: str):
 @bot.command(name="redditroulette", help="Spin the Reddit wheel and Take a Chance.")
 async def redditroulette(ctx):
     try:
-        subreddit = reddit.subreddit("FemBoys+memes+birdswitharms+garageporn+futanari+kittens+Tinder")
-        posts = list(subreddit.top(time_filter="day", limit=200))
+        subreddit = await reddit.subreddit("FemBoys+memes+birdswitharms+garageporn+futanari+kittens+Tinder")
+
+        posts = []
+        async for post in subreddit.top(time_filter="day", limit=200):
+            posts.append(post)
         random.shuffle(posts)
 
         for post in posts:
-            image_url = post.url
-            if image_url.endswith((".jpg", ".png", ".gif")):
-                # Download the image temporarily
+            url = post.url
+            if url.endswith((".jpg", ".png", ".gif")):
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(image_url) as resp:
-                        if resp.status == 200:
-                            data = await resp.read()
-                            subreddit_name = str(post.subreddit).lower()
-                            # Add spoiler tag for these two subreddits:
-                            if subreddit_name in ["femboys", "futanari"]:
-                                filename = f"SPOILER_{os.path.basename(image_url)}"
-                            else:
-                                filename = os.path.basename(image_url)
+                    async with session.get(url) as resp:
+                        if resp.status != 200:
+                            continue
+                        data = await resp.read()
 
-                            file = discord.File(fp=io.BytesIO(data), filename=filename)
-                            await ctx.send(file=file)
-                            return
+                filename = "SPOILER_" + url.split("/")[-1]
+                file = discord.File(fp=io.BytesIO(data), filename=filename)
+                await ctx.send(file=file)
+                return
+
         await ctx.send("⚠️ No images found!")
     except Exception as e:
         await ctx.send("😕 Failed to fetch images from Reddit.")
@@ -128,7 +127,7 @@ async def help_command(ctx):
         "🛠 **Available Commands:**\n"
         "• `!probability <sentence>` – Get a random probability score for your sentence.\n"
         "• `!joe <question>` – Ask the AI anything you want.\n"
-        "• `!redditroulette` – Spin the Reddit wheel for a image or gif.\n"
+        "• `!redditroulette` – Spin the Reddit wheel for a spicy meme.\n"
         "• `!trivia` – Test your knowledge with a trivia question.\n"
         "• `!hangman start` / `!hangman guess <letter>` – Play Hangman together.\n"
         "• `!hack <username>` – Simulate a fake hacker mode.\n"
