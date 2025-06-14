@@ -8,20 +8,33 @@ from flask import Flask
 import threading
 import aiohttp
 import asyncio
+import praw  # Added PRAW import
 
 # Environment Variables
 TOKEN = os.getenv("DISCORD_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
+REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET")
+REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT", "discord:trader-joe-bot:v1.0 (by /u/your_reddit_username)")
 
 if not TOKEN:
     raise ValueError("DISCORD_TOKEN environment variable is missing!")
 if not OPENROUTER_API_KEY:
     raise ValueError("OPENROUTER_API_KEY environment variable is missing!")
+if not REDDIT_CLIENT_ID or not REDDIT_CLIENT_SECRET:
+    raise ValueError("Reddit OAuth environment variables are missing!")
 
 # Set up OpenRouter client
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=OPENROUTER_API_KEY,
+)
+
+# Set up Reddit client (PRAW)
+reddit = praw.Reddit(
+    client_id=REDDIT_CLIENT_ID,
+    client_secret=REDDIT_CLIENT_SECRET,
+    user_agent=REDDIT_USER_AGENT,
 )
 
 # Discord Bot Setup
@@ -86,26 +99,22 @@ async def joe(ctx, *, question: str):
         await ctx.send("⚠️ Mini Aoruen Crashed The Car. Try again shortly.")
         print(f"[AI Error] {e}")
 
-# Meme command (Reddit)
+# Meme command (Reddit) — now using PRAW with OAuth
 @bot.command(name="meme", help="Fetch a meme from r/memes.")
 async def meme(ctx):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
-            "https://www.reddit.com/r/memes/top.json?limit=50&t=day",
-            headers={"User-Agent": "trader-joe-bot"}
-        ) as response:
-            if response.status != 200:
-                await ctx.send("😕 Failed to fetch memes from Reddit.")
+    try:
+        subreddit = reddit.subreddit("memes")
+        posts = list(subreddit.top(time_filter="day", limit=50))
+        random.shuffle(posts)
+        for post in posts:
+            image_url = post.url
+            if image_url.endswith((".jpg", ".png", ".gif")):
+                await ctx.send(image_url)
                 return
-            data = await response.json()
-            posts = data["data"]["children"]
-            random.shuffle(posts)
-            for post in posts:
-                image_url = post["data"].get("url_overridden_by_dest")
-                if image_url and image_url.endswith((".jpg", ".png", ".gif")):
-                    await ctx.send(image_url)
-                    return
-            await ctx.send("⚠️ No image memes found!")
+        await ctx.send("⚠️ No image memes found!")
+    except Exception as e:
+        await ctx.send("😕 Failed to fetch memes from Reddit.")
+        print(f"[Reddit Error] {e}")
 
 # Help command
 @bot.command(name="help", help="List all available commands.")
@@ -266,7 +275,7 @@ async def hack(ctx, username: str = None):
 
     password = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=10))
     await ctx.send(f"💾 Password found: **{password}** 🔓")
-    await ctx.send(f"✅ Hack complete on **{username}**! (Totally fake, don’t worry 😉)")
+    await ctx.send(f"✅ Hack complete on **{username}**!")
 
 # Minimal Flask Web Server to satisfy Render
 app = Flask(__name__)
