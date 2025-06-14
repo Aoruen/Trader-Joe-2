@@ -10,6 +10,7 @@ import aiohttp
 import asyncio
 import asyncpraw
 import io
+from PIL import Image
 
 # Environment Variables
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -92,40 +93,69 @@ async def joe(ctx, *, question: str):
         await ctx.send("⚠️ Mini Aoruen Crashed The Car. Try again shortly.")
         print(f"[AI Error] {e}")
 
-@bot.command(name="redditroulette", help="Spin the Reddit wheel and Take a Chance.")
+@bot.command(name="redditroulette", help="Spin the Reddit wheel and auto-compress if image too large.")
 async def redditroulette(ctx):
     try:
-        subreddit_names = ["FemBoys", "memes", "birdswitharms", "garageporn", "futanari", "kittens", "Tinder"]
-        chosen_subreddit = random.choice(subreddit_names)
-        subreddit = await reddit.subreddit(chosen_subreddit)
+        subreddits = ["FemBoys", "memes", "birdswitharms", "garageporn", "futanari", "kittens", "Tinder"]
+        chosen_subreddit = random.choice(subreddits)
 
-        posts = []
-        async for post in subreddit.top(time_filter="day", limit=200):
-            posts.append(post)
-        random.shuffle(posts)
+        headers = {"User-Agent": "trader-joe-bot"}
+        url = f"https://www.reddit.com/r/{chosen_subreddit}/top.json?limit=50&t=day"
 
-        for post in posts:
-            url = post.url
-            if url.endswith((".jpg", ".png", ".gif")):
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url) as resp:
-                        if resp.status != 200:
-                            continue
-                        data = await resp.read()
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status != 200:
+                    await ctx.send("😕 Failed to fetch posts from Reddit.")
+                    return
+                data = await response.json()
+                posts = data["data"]["children"]
+                random.shuffle(posts)
 
-                filename = url.split("/")[-1]
-                # Add spoiler tag only if subreddit is FemBoys or Futanari
-                if chosen_subreddit.lower() in ["femboys", "futanari"]:
-                    filename = "SPOILER_" + filename
+                for post in posts:
+                    image_url = post["data"].get("url_overridden_by_dest")
+                    if not image_url or not image_url.lower().endswith((".jpg", ".jpeg", ".png", ".gif")):
+                        continue
 
-                file = discord.File(fp=io.BytesIO(data), filename=filename)
-                await ctx.send(f"🎲 From r/{chosen_subreddit}", file=file)
-                return
+                    try:
+                        async with session.get(image_url) as img_response:
+                            if img_response.status != 200:
+                                continue
+                            data = await img_response.read()
+                            filename = image_url.split("/")[-1].split("?")[0]
 
-        await ctx.send(f"⚠️ No images found in r/{chosen_subreddit}!")
+                            # Try compressing static images
+                            if image_url.lower().endswith((".jpg", ".jpeg", ".png")):
+                                try:
+                                    image = Image.open(BytesIO(data))
+                                    MAX_SIZE = 7.5 * 1024 * 1024
+                                    if len(data) > MAX_SIZE:
+                                        image.thumbnail((1080, 1080))
+                                        buf = BytesIO()
+                                        if image.format in ["JPEG", "JPG"]:
+                                            image.save(buf, format="JPEG", quality=85)
+                                        else:
+                                            image.save(buf, format="PNG", optimize=True)
+                                        buf.seek(0)
+                                        data = buf.read()
+                                except Exception as e:
+                                    print(f"[Image Compression Error] {e}")
+
+                            buffer = BytesIO(data)
+                            spoiler = chosen_subreddit.lower() in ["femboys", "futanari"]
+                            if spoiler:
+                                filename = "SPOILER_" + filename
+                            file = discord.File(fp=buffer, filename=filename)
+                            await ctx.send(f"🎲 From r/{chosen_subreddit}", file=file)
+                            return
+
+                    except Exception as e:
+                        print(f"[Redditroulette Error] {e}")
+                        continue
+
+        await ctx.send(f"⚠️ Couldn't find a usable post in r/{chosen_subreddit}.")
     except Exception as e:
-        await ctx.send("😕 Failed to fetch images from Reddit.")
-        print(f"[Reddit Error] {e}")
+        await ctx.send("🚨 Reddit Roulette crashed!")
+        print(f"[Main Error] {e}")
 
 @bot.command(name="help", help="List all available commands.")
 async def help_command(ctx):
