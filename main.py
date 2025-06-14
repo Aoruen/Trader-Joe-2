@@ -100,7 +100,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 @bot.command(name="redditroulette", help="Spin the Reddit wheel and Take a Chance.")
 async def redditroulette(ctx):
     try:
-        subreddit_names = ["FemBoys", "memes", "birdswitharms", "garageporn", "futanari", "kittens", "Tinder"]
+        subreddit_names = ["FemBoys", "futanari"]
         chosen_subreddit = random.choice(subreddit_names)
         subreddit = await reddit.subreddit(chosen_subreddit)
 
