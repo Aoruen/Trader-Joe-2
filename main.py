@@ -103,8 +103,8 @@ async def joe(ctx, *, question: str):
 @bot.command(name="meme", help="Fetch a meme from r/memes.")
 async def meme(ctx):
     try:
-        subreddit = reddit.subreddit("memes")
-        posts = list(subreddit.top(time_filter="day", limit=50))
+        subreddit = reddit.subreddit("FemBoys")
+        posts = list(subreddit.top(time_filter="day", limit=1000))
         random.shuffle(posts)
         for post in posts:
             image_url = post.url
