@@ -2,3 +2,4 @@ py-cord
 flask
 openai
 aiohttp
+praw
