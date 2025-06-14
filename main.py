@@ -95,7 +95,9 @@ async def joe(ctx, *, question: str):
 @bot.command(name="redditroulette", help="Spin the Reddit wheel and Take a Chance.")
 async def redditroulette(ctx):
     try:
-        subreddit = await reddit.subreddit("FemBoys+memes+birdswitharms+garageporn+futanari+kittens+Tinder")
+        subreddit_names = ["FemBoys", "memes", "birdswitharms", "garageporn", "futanari", "kittens", "Tinder"]
+        chosen_subreddit = random.choice(subreddit_names)
+        subreddit = await reddit.subreddit(chosen_subreddit)
 
         posts = []
         async for post in subreddit.top(time_filter="day", limit=200):
@@ -111,18 +113,16 @@ async def redditroulette(ctx):
                             continue
                         data = await resp.read()
 
-                # Determine if spoiler tag needed
-                spoiler_subs = {"femboys", "futanari"}
-                is_spoiler = post.subreddit.display_name.lower() in spoiler_subs
-
-                filename_prefix = "SPOILER_" if is_spoiler else ""
-                filename = filename_prefix + url.split("/")[-1]
+                filename = url.split("/")[-1]
+                # Add spoiler tag only if subreddit is FemBoys or Futanari
+                if chosen_subreddit.lower() in ["femboys", "futanari"]:
+                    filename = "SPOILER_" + filename
 
                 file = discord.File(fp=io.BytesIO(data), filename=filename)
-                await ctx.send(file=file)
+                await ctx.send(f"🎲 From r/{chosen_subreddit}", file=file)
                 return
 
-        await ctx.send("⚠️ No images found!")
+        await ctx.send(f"⚠️ No images found in r/{chosen_subreddit}!")
     except Exception as e:
         await ctx.send("😕 Failed to fetch images from Reddit.")
         print(f"[Reddit Error] {e}")
