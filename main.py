@@ -100,7 +100,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 @bot.command(name="redditroulette", help="Spin the Reddit wheel and Take a Chance.")
 async def redditroulette(ctx):
     try:
-        subreddit_names = ["FemBoys", "futanari"]
+        subreddit_names = ["FemBoys", "memes", "birdswitharms", "garageporn", "futanari", "kittens", "Tinder"]
         chosen_subreddit = random.choice(subreddit_names)
         subreddit = await reddit.subreddit(chosen_subreddit)
 
@@ -113,54 +113,32 @@ async def redditroulette(ctx):
 
         random.shuffle(posts)
 
-        image_extensions = (".jpg", ".jpeg", ".png")  # images allowed for upload
-        video_extensions = (".mp4", ".webm", ".gifv", ".gif")          # videos/gif replacements to link
+        allowed_extensions = (".jpg", ".jpeg", ".png", ".gif")  # Only images + .gif
 
         for post in posts:
-            url = post.url
-            lower_url = url.lower()
-            parsed = urlparse(lower_url)
+            if getattr(post, "is_video", False):
+                continue  # Skip all Reddit-hosted videos
+
+            media_url = post.url.lower()
+            parsed = urlparse(media_url)
             filename = os.path.basename(parsed.path)
 
-            # Check if post is a Reddit-hosted video
-            if getattr(post, "is_video", False):
-                # Get the reddit_video fallback url
-                if post.media and "reddit_video" in post.media:
-                    video_url = post.media["reddit_video"].get("fallback_url")
-                    if video_url:
-                        # Just send the video URL so it embeds and plays
-                        await ctx.send(f"🎲 From r/{chosen_subreddit}: {post.title}\n{video_url}")
-                        return
-                continue  # skip if no fallback video url
-
-            # If the url is a video type but not marked as reddit video (like gifv or webm)
-            if filename.endswith(video_extensions):
-                # Send URL directly to allow playback
-                await ctx.send(f"🎲 From r/{chosen_subreddit}: {post.title}\n{url}")
-                return
-
-            # Else if url is an image type, or fallback preview image
-            if filename.endswith(image_extensions):
-                media_url = url
-            else:
-                # Try preview image fallback
+            if not filename.endswith(allowed_extensions):
+                # Try preview fallback
                 if hasattr(post, "preview") and "images" in post.preview:
                     images = post.preview["images"]
                     if images:
                         preview_url = images[0].get("source", {}).get("url", "").replace("&amp;", "&")
-                        parsed_preview = urlparse(preview_url)
-                        preview_filename = os.path.basename(parsed_preview.path)
-                        if preview_filename.endswith(image_extensions):
-                            media_url = preview_url
-                            filename = preview_filename
-                        else:
+                        parsed = urlparse(preview_url)
+                        filename = os.path.basename(parsed.path)
+                        if not filename.endswith(allowed_extensions):
                             continue
+                        media_url = preview_url
                     else:
                         continue
                 else:
                     continue
 
-            # Download media data
             async with aiohttp.ClientSession() as session:
                 async with session.get(media_url) as resp:
                     if resp.status != 200:
@@ -170,7 +148,7 @@ async def redditroulette(ctx):
             if len(data) > MAX_FILE_SIZE:
                 continue
 
-            # Add spoiler prefix for images
+            # Handle NSFW subreddits
             if chosen_subreddit.lower() in ["femboys", "futanari"]:
                 filename = "SPOILER_" + filename
 
