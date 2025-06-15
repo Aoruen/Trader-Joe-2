@@ -113,8 +113,8 @@ async def redditroulette(ctx):
 
         random.shuffle(posts)
 
-        image_extensions = (".jpg", ".jpeg", ".png", ".gif")  # images allowed for upload
-        video_extensions = (".mp4", ".webm", ".gifv")          # videos/gif replacements to link
+        image_extensions = (".jpg", ".jpeg", ".png")  # images allowed for upload
+        video_extensions = (".mp4", ".webm", ".gifv", ".gif")          # videos/gif replacements to link
 
         for post in posts:
             url = post.url
